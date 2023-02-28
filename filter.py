@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 class filter:
 
@@ -13,6 +14,7 @@ class filter:
         self.start()
 
     def load_data(self):
+        print("loading data ")
         with open('./netflix/TrainingRatings.txt') as f:
             lines = f.readlines()
 
@@ -22,8 +24,11 @@ class filter:
                 self.movie_ratings[temp[1]]={}
 
             self.movie_ratings[temp[1]][temp[0]]=float(temp[2])
+        
+        print("data loaded successfully...")
 
     def calculate_mean_ratings_of_users(self):
+        print('calculating mean ratings of users')
         for i in self.movie_ratings.keys():
             sum_of_ratings=0
             count=0
@@ -38,8 +43,10 @@ class filter:
                 if not i in self.mean_centered_ratings.keys():
                     self.mean_centered_ratings[i]={}
                 self.mean_centered_ratings[i][j]=self.movie_ratings[i][j]-self.users_mean_ratings[i]
+        
+        print("done calculating means")
 
-    def find_common_ratings_between_users(self,user1,user2):
+    def find_common_ratings_and_weights_between_users(self,user1,user2):
         common_ratings=[]
         if len(user1.keys())>len(user2.keys()):
             for i in user2.keys():
@@ -54,15 +61,20 @@ class filter:
 
 
 
+
     def calculate_weights_of_users(self):
+        print("finding common ratings between users")
         for i in self.movie_ratings.keys():
             for j in self.movie_ratings.keys():
-                if not i ==j :
-                    if not i in self.common_ratings_between_users.keys():
-                        self.common_ratings_between_users[i]={}
-                    self.common_ratings_between_users[i][j]=self.find_common_ratings_between_users(self.movie_ratings[i],self.movie_ratings[j])
+                if not i in self.common_ratings_between_users.keys():
+                    self.common_ratings_between_users[i]={}
+                
+                self.common_ratings_between_users[i][j]=self.find_common_ratings_between_users(self.movie_ratings[i],self.movie_ratings[j])
+
+        print("done finding common ratings between users")
 
 
+        print('calculating weights of users with respect to each other')
         for i in self.common_ratings_between_users.keys():
             for j in self.common_ratings_between_users[i].keys():
                 common_ratings=self.common_ratings_between_users[i][j]
@@ -81,13 +93,17 @@ class filter:
                 
                 self.weights_of_users[i][j]=sum_of_product_user1_user2/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
 
+        print('done calculating weights')
     
     def calculate_normalizing_factors(self):
+        print('calculating normalizing factors for users')
         for i in self.weights_of_users.keys():
             sum_of_weights=0
             for j in self.weights_of_users[i].keys():
                 sum_of_weights+=self.weights_of_users[i][j]
             self.normalizing_factor[i]=sum_of_weights
+        
+        print('done calularing normalizing factors...')
 
 
     def start(self):
