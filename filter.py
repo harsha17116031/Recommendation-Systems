@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import pickle
 
 class filter:
 
@@ -46,18 +47,41 @@ class filter:
         
         print("done calculating means")
 
-    def find_common_ratings_and_weights_between_users(self,user1,user2):
-        common_ratings=[]
+    def find_common_ratings_between_users(self,index_user1,index_user2,user1,user2):
+        
+        sum_of_product_of_ratings=0
+        sum_of_squares_user1=0
+        sum_of_squares_user2=0
         if len(user1.keys())>len(user2.keys()):
+            
             for i in user2.keys():
                 if i in user1.keys():
-                    common_ratings.append([user1[i],user2[i]])
+                    sum_of_product_of_ratings+=user1[i]*user2[i]
+                    sum_of_squares_user1+=user1[i]**2
+                    sum_of_squares_user2+=user2[i]**2
+
+            if not index_user1 in self.weights_of_users.keys():
+                self.weights_of_users[index_user1]={}  
+            try: 
+                self.weights_of_users[index_user1][index_user2]=sum_of_product_of_ratings/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
+            except Exception:
+                self.weights_of_users[index_user1][index_user2]=0
         else:
             for i in user1.keys():
                 if i in user2.keys():
-                    common_ratings.append([user1[i],user2[i]])
+                    sum_of_product_of_ratings+=user1[i]*user2[i]
+                    sum_of_squares_user1+=user1[i]**2
+                    sum_of_squares_user2+=user2[i]**2
+            
+            if not index_user1 in self.weights_of_users.keys():
+                self.weights_of_users[index_user1]={}    
+            try: 
+                self.weights_of_users[index_user1][index_user2]=sum_of_product_of_ratings/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
+            except Exception:
+                self.weights_of_users[index_user1][index_user2]=0
+        print(index_user1,index_user2)
 
-        return common_ratings
+        
 
 
 
@@ -69,29 +93,30 @@ class filter:
                 if not i in self.common_ratings_between_users.keys():
                     self.common_ratings_between_users[i]={}
                 
-                self.common_ratings_between_users[i][j]=self.find_common_ratings_between_users(self.movie_ratings[i],self.movie_ratings[j])
+                self.find_common_ratings_between_users(i,j,self.movie_ratings[i],self.movie_ratings[j])
 
         print("done finding common ratings between users")
-
+        with open('weights.pk','wb') as f:
+            pickle.dump(self.weights_of_users,f)
 
         print('calculating weights of users with respect to each other')
-        for i in self.common_ratings_between_users.keys():
-            for j in self.common_ratings_between_users[i].keys():
-                common_ratings=self.common_ratings_between_users[i][j]
+        # for i in self.common_ratings_between_users.keys():
+        #     for j in self.common_ratings_between_users[i].keys():
+        #         common_ratings=self.common_ratings_between_users[i][j]
 
-                sum_of_product_user1_user2=0
-                sum_of_squares_user1=0
-                sum_of_squares_user2=0
+        #         sum_of_product_user1_user2=0
+        #         sum_of_squares_user1=0
+        #         sum_of_squares_user2=0
 
-                for k in common_ratings:
-                    sum_of_product_user1_user2+=k[0]*k[1]
-                    sum_of_squares_user1+=k[0]**2
-                    sum_of_squares_user2+=k[1]**2
+        #         for k in common_ratings:
+        #             sum_of_product_user1_user2+=k[0]*k[1]
+        #             sum_of_squares_user1+=k[0]**2
+        #             sum_of_squares_user2+=k[1]**2
                 
-                if not j in self.weights_of_users[i]:
-                    self.weights_of_users[i]={}
+        #         if not j in self.weights_of_users[i]:
+        #             self.weights_of_users[i]={}
                 
-                self.weights_of_users[i][j]=sum_of_product_user1_user2/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
+        #         self.weights_of_users[i][j]=sum_of_product_user1_user2/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
 
         print('done calculating weights')
     
@@ -102,6 +127,9 @@ class filter:
             for j in self.weights_of_users[i].keys():
                 sum_of_weights+=self.weights_of_users[i][j]
             self.normalizing_factor[i]=sum_of_weights
+
+        with open('normalizingFactors.pk','wb') as f:
+            pickle.dump(self.normalizing_factor,f)
         
         print('done calularing normalizing factors...')
 
