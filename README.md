@@ -18,6 +18,7 @@ where n is the number of users in the collaborative filtering database with nonz
 Correlation between active user $a$ and $i^{th}$ user is given by:
 ```math
 w(a,i) = {{\sum_{j}(v_{a,j}-\bar{v}_{a})(v_{i,j}-\bar{v}_{i})} \over {\sqrt{\sum_{j}(v_{a,j}-\bar{v}_a)^2 \sum_{j}(v_{i,j}-\bar{v}_{i})^2}}}
+```
 
 A matrix of weights is generated which is further used to predict the ratings. The dataset being used is a subset of movie ratings data from Netflix Prize. The dataset has 3.25 million user ratings that contains ~28000 users and ~1900 movies. Evaluation metrics used are Mean Absolute Error and Root Mean Squared Error.
 
