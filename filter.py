@@ -1,150 +1,197 @@
-import math
 import numpy as np
+import math
 import pickle
+import warnings
 
-class filter:
+class Filter:
 
     def __init__(self):
-        self.movie_ratings={}
-        self.users_mean_ratings={}
-        self.mean_centered_ratings={}
-        self.common_ratings_between_users={}
-        self.sum_of_squares_of_ratings_for_users={}
-        self.weights_of_users={}
-        self.normalizing_factor={}
+
+        warnings.filterwarnings('ignore')
+
+        self.update=True
+
+        self.user_indexer={}
+        self.movie_indexer={}
+        self.movie_index=0
+        self.user_index=0
+        self.shortcut_ratings={}
+        self.shortcut_mean_ratings={}
+        self.shortcut_mean_centered_ratings={}
+        self.mean_of_user_ratings=[]
+        self.predicted_ratings=[]
+        self.true_ratings=[]
+
+
         self.start()
 
+
     def load_data(self):
-        print("loading data ")
+        print("loading data ..")
         with open('./netflix/TrainingRatings.txt') as f:
-            lines = f.readlines()
+            lines=f.readlines()
 
         for i in lines:
-            temp=i.replace("\n","").split(',')
-            if not temp[1] in self.movie_ratings.keys():
-                self.movie_ratings[temp[1]]={}
+            values=i.replace("\n","").split(',')
+            if not  values[0] in self.movie_indexer:
+                self.movie_indexer[values[0]]=self.movie_index
+                self.movie_index+=1
+            
+            if not values[1] in self.user_indexer:
+                self.user_indexer[values[1]]=self.user_index
+                self.user_index+=1
 
-            self.movie_ratings[temp[1]][temp[0]]=float(temp[2])
+        self.ratings=np.zeros([self.user_index,self.movie_index])
+        self.mean_centered_ratings=np.zeros([self.user_index,self.movie_index])
+        self.weights_of_users=np.zeros([self.user_index,self.user_index])
+
         
-        print("data loaded successfully...")
+        for i in lines:
+            values=i.replace("\n","").split(',')
+            index_of_movie=self.movie_indexer[values[0]]
+            index_of_user=self.user_indexer[values[1]]
 
-    def calculate_mean_ratings_of_users(self):
+            self.ratings[index_of_user][index_of_movie]=values[2]
+
+            if not values[1] in self.shortcut_ratings.keys():
+                self.shortcut_ratings[values[1]]={}
+
+            self.shortcut_ratings[values[1]][values[0]]=float(values[2])
+
+    def calculate_mean_of_ratings(self):
+        self.mean_of_user_ratings=np.true_divide(self.ratings.sum(1),(self.ratings!=0).sum(1))
+    
         print('calculating mean ratings of users')
-        for i in self.movie_ratings.keys():
+        for i in self.shortcut_ratings.keys():
             sum_of_ratings=0
             count=0
 
-            for j in self.movie_ratings[i].keys():
-                sum_of_ratings+=self.movie_ratings[i][j]
+            for j in self.shortcut_ratings[i].keys():
+                sum_of_ratings+=self.shortcut_ratings[i][j]
                 count+=1
             
-            self.users_mean_ratings[i]=sum_of_ratings/count
+            self.shortcut_mean_ratings[i]=sum_of_ratings/count
 
-            for j in self.movie_ratings[i].keys():
-                if not i in self.mean_centered_ratings.keys():
-                    self.mean_centered_ratings[i]={}
-                self.mean_centered_ratings[i][j]=self.movie_ratings[i][j]-self.users_mean_ratings[i]
-        
+            for j in self.shortcut_ratings[i].keys():
+                if not i in self.shortcut_mean_centered_ratings.keys():
+                    self.shortcut_mean_centered_ratings[i]={}
+                
+                self.shortcut_mean_centered_ratings[i][j]=self.shortcut_ratings[i][j]-self.shortcut_mean_ratings[i]
         print("done calculating means")
+    
+    def matrix_from_shortcut(self):
+        print('started matrix')
+        for i in self.shortcut_mean_centered_ratings.keys():
+            for j in self.shortcut_mean_centered_ratings[i].keys():
+                self.mean_centered_ratings[self.user_indexer[i]][self.movie_indexer[j]]=self.shortcut_mean_centered_ratings[i][j]
 
-    def find_common_ratings_between_users(self,index_user1,index_user2,user1,user2):
-        
-        sum_of_product_of_ratings=0
-        sum_of_squares_user1=0
-        sum_of_squares_user2=0
-        if len(user1.keys())>len(user2.keys()):
-            
-            for i in user2.keys():
-                if i in user1.keys():
-                    sum_of_product_of_ratings+=user1[i]*user2[i]
-                    sum_of_squares_user1+=user1[i]**2
-                    sum_of_squares_user2+=user2[i]**2
+        print('done with matrix')
 
-            if not index_user1 in self.weights_of_users.keys():
-                self.weights_of_users[index_user1]={}  
-            try: 
-                self.weights_of_users[index_user1][index_user2]=sum_of_product_of_ratings/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
-            except Exception:
-                self.weights_of_users[index_user1][index_user2]=0
-        else:
-            for i in user1.keys():
-                if i in user2.keys():
-                    sum_of_product_of_ratings+=user1[i]*user2[i]
-                    sum_of_squares_user1+=user1[i]**2
-                    sum_of_squares_user2+=user2[i]**2
-            
-            if not index_user1 in self.weights_of_users.keys():
-                self.weights_of_users[index_user1]={}    
-            try: 
-                self.weights_of_users[index_user1][index_user2]=sum_of_product_of_ratings/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
-            except Exception:
-                self.weights_of_users[index_user1][index_user2]=0
-        print(index_user1,index_user2)
+    def find_denominator_and_weights(self):
+        for i in range(0,self.user_index):
+            print(i)
+            for j in range(i,self.user_index):
+                A=self.mean_centered_ratings[i]
+                B=self.mean_centered_ratings[j]
 
-        
+                AB=np.multiply(A,B)
+                ABB=np.multiply(AB,B)
 
+                A=np.divide(AB,B)
+                A[np.isnan(A)]=0
 
+                B=np.divide(ABB,A)
+                B[np.isnan(B)]=0
+
+                A=np.square(A)
+
+                self.weights_of_users[i][j]=self.product_of_user_ratings[i][j]/math.sqrt(np.sum(A)*np.sum(B))
+
+        self.weights_of_users=self.weights_of_users+np.transpose(self.weights_of_users)
+        self.weights_of_users[np.isnan(self.weights_of_users)]=0
+        np.fill_diagonal(self.weights_of_users,1)
+
+        return 
 
 
     def calculate_weights_of_users(self):
-        print("finding common ratings between users")
-        for i in self.movie_ratings.keys():
-            for j in self.movie_ratings.keys():
-                if not i in self.common_ratings_between_users.keys():
-                    self.common_ratings_between_users[i]={}
-                
-                self.find_common_ratings_between_users(i,j,self.movie_ratings[i],self.movie_ratings[j])
+        self.sum_of_squares_of_centered_ratings=np.sum(np.square(self.mean_centered_ratings),axis=1)
 
-        print("done finding common ratings between users")
-        with open('weights.pk','wb') as f:
-            pickle.dump(self.weights_of_users,f)
+        self.product_of_user_ratings=np.dot(self.mean_centered_ratings,np.transpose(self.mean_centered_ratings))
 
-        print('calculating weights of users with respect to each other')
-        # for i in self.common_ratings_between_users.keys():
-        #     for j in self.common_ratings_between_users[i].keys():
-        #         common_ratings=self.common_ratings_between_users[i][j]
-
-        #         sum_of_product_user1_user2=0
-        #         sum_of_squares_user1=0
-        #         sum_of_squares_user2=0
-
-        #         for k in common_ratings:
-        #             sum_of_product_user1_user2+=k[0]*k[1]
-        #             sum_of_squares_user1+=k[0]**2
-        #             sum_of_squares_user2+=k[1]**2
-                
-        #         if not j in self.weights_of_users[i]:
-        #             self.weights_of_users[i]={}
-                
-        #         self.weights_of_users[i][j]=sum_of_product_user1_user2/math.sqrt(sum_of_squares_user1*sum_of_squares_user2)
-
-        print('done calculating weights')
-    
-    def calculate_normalizing_factors(self):
-        print('calculating normalizing factors for users')
-        for i in self.weights_of_users.keys():
-            sum_of_weights=0
-            for j in self.weights_of_users[i].keys():
-                sum_of_weights+=self.weights_of_users[i][j]
-            self.normalizing_factor[i]=sum_of_weights
-
-        with open('normalizingFactors.pk','wb') as f:
-            pickle.dump(self.normalizing_factor,f)
+        self.find_denominator_and_weights()
+        self.n_factors=np.sum(self.weights_of_users,axis=1)
         
-        print('done calularing normalizing factors...')
+
+    def is_it_nan(self,value):
+        if value=='nan':
+            return 0
+        else:
+            return value
+
+    def predict(self,values):
+        movie_id=values[0]
+        user_id=values[1]
+        rating=values[2]
+
+        self.true_ratings.append(float(rating))
+
+        user_id_index=self.user_indexer[user_id]
+        movie_id_index=self.movie_indexer[movie_id]
+
+
+        predicted_rating=self.mean_of_user_ratings[user_id_index]+self.is_it_nan(((self.merged_data[user_id_index][movie_id_index])/self.n_factors[user_id_index]))
+        self.predicted_ratings.append(predicted_rating)
+
+    def load_test_data(self):
+        print('loading test data.....')
+
+        with open('./netflix/TestingRatings.txt') as f:
+            lines=f.readlines()
+
+        count=0
+        for i in lines:
+            #print(count)
+            values=i.replace("\n","").split(',')
+            
+            self.predict(values)
+            count+=1
+
+
+
+    def test(self):
+        
+        print('merging data ....')
+        self.merged_data=np.dot(self.weights_of_users,self.mean_centered_ratings)
+        print('done merging..')
+        self.load_test_data()
+
+    
+    def evaluate_test_results(self):
+
+        self.predicted_ratings=np.array(self.predicted_ratings)
+        self.predicted_ratings[np.isnan(self.predicted_ratings)]=0
+        predicted_ratings=self.predicted_ratings
+
+        true_ratings=np.array(self.true_ratings),
+
+        print("MAE is : ",np.mean(np.abs(np.subtract(true_ratings,predicted_ratings))))
+
+        print("RMSE is : ",math.sqrt(np.square(np.subtract(true_ratings,predicted_ratings)).mean()))
 
 
     def start(self):
         self.load_data()
-        self.calculate_mean_ratings_of_users()
+        self.calculate_mean_of_ratings()
+        self.matrix_from_shortcut()
         self.calculate_weights_of_users()
-        self.calculate_normalizing_factors()
+
+        self.test()
+
+        self.evaluate_test_results()
 
 
 
-algo=filter()
 
-print(algo.normalizing_factor)
-
-
+filter=Filter()
 
